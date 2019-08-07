@@ -1,0 +1,46 @@
+#Define the Variables
+
+$kvName = 'DK710KV'
+$rgName = 'DK710RG'
+$location = 'East US'
+$aadClientSecret = ConvertTo-SecureString -String "password" -AsPlainText -Force
+$appDisplayName = 'DK710EncryptApp'
+
+#Create RG & KV
+
+New-AzureRmResourceGroup -Name $rgName -Location $location
+New-AzureRmKeyVault -VaultName $kvName -ResourceGroupName $rgName -Location $location
+
+#Enabling Encryption 
+Set-AzureRmKeyVaultAccessPolicy -VaultName $kvName -ResourceGroupName $rgName -EnabledForDiskEncryption
+
+# Register APP in AAD& Set SPN 
+
+$aadApp = New-AzureRmADApplication -DisplayName $appDisplayName -HomePage 'http://homepageDK710EncryptApp' -IdentifierUris 'http://uriDK710EncryptApp' -Password $aadClientSecret
+
+$appID = $aadApp.ApplicationId
+
+$aadServicePrincipal = New-AzureRmADServicePrincipal -ApplicationId $appID
+
+Set-AzureRmKeyVaultAccessPolicy -VaultName $kvName -ServicePrincipalName $appID -PermissionsToKeys all -PermissionsToSecrets all
+
+#Encrypting the VM
+
+$vmName = 'VMTOBEEN'
+
+$kv = Get-AzureRmKeyVault -VaultName $kvName -ResourceGroupName $rgName
+$kvUri = $kv.VaultUri
+$kvRID = $kv.ResourceId
+
+Set-AzureRmVMDiskEncryptionExtension -ResourceGroupName $rgName -VMName $vmName -AadClientID $appID -AadClientSecret password -DiskEncryptionKeyVaultUrl $kvUri -DiskEncryptionKeyVaultId $kvRID
+
+#Encrypting Data Volume
+
+Set-AzureRmVMDiskEncryptionExtension -ResourceGroupName $rgName -VMName $vmName -AadClientID $appID -AadClientSecret password -DiskEncryptionKeyVaultUrl $kvUri -DiskEncryptionKeyVaultId $kvRID -VolumeType Data
+
+Get-AzureRmVMDiskEncryptionStatus -VMName $vmName -ResourceGroupName $rgName
+
+
+
+
+
